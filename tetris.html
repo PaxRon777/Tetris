@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tetris</title>
+    <link href="https://fonts.googleapis.com/css2?family=Science+Gothic:wght@400..700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #888888;
+            --grid-border: #333333;
+        }
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
+
+                body {
+                    margin: 0; padding: 0; background-color: var(--bg-color);
+                    color: #87CEFA; font-family: 'Science Gothic', 'Segoe UI', Tahoma, sans-serif;
+                    width: 100vw; height: 100vh; overflow: hidden;
+                    display: flex; justify-content: center; align-items: center;
+                    font-size: 3.5rem; font-weight: bold;
+                }
+
+        #game-wrapper {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            padding: 20px;
+            background: var(--panel-color);
+            height: 100vh;
+            align-items: stretch;
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 140px;
+        }
+
+        .info-box {
+            background: var(--panel-color); border: 1px solid var(--grid-border);
+            border-radius: 8px; padding: 10px; text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .info-label { font-size: 1.5rem; text-transform: uppercase; color: #ffffff; display: block; margin-bottom: 5px; }
+        .info-value { font-size: 1.75rem; font-weight: bold; font-family: monospace; }
+
+        #title-header {
+            font-size: 1.5rem;
+            color: #87CEFA;
+            text-align: center;
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+            font-weight: bold;
+        }
+
+        #canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        canvas { display: block; background-color: #000; border-radius: 4px; image-rendering: crisp-edges; image-rendering: pixelated; }
+        #main-canvas { 
+            height: 100%;
+            width: auto;
+            aspect-ratio: 1 / 2;
+            border: 4px solid var(--grid-border);
+            max-height: calc(100vh - 40px);
+        }
+
+        @keyframes levelPulse {
+            0% { transform: scale(1); color: #ffffff; }
+            50% { transform: scale(1.2); color: #87CEFA; }
+            100% { transform: scale(1); color: #ffffff; }
+        }
+
+        @keyframes levelPulse {
+            0% { transform: scale(1); color: #ffffff; }
+            50% { transform: scale(1.2); color: #87CEFA; }
+            100% { transform: scale(1); color: #ffffff; }
+        }
+
+        @keyframes lineFlash {
+            0% { opacity: 1; filter: brightness(1); }
+            50% { opacity: 0.3; filter: brightness(2); }
+            100% { opacity: 1; filter: brightness(1); }
+        }
+
+        @keyframes panelFlash {
+            0% { background-color: var(--panel-color); }
+            50% { background-color: #87CEFA; }
+            100% { background-color: var(--panel-color); }
+        }
+
+        .level-up-anim {
+            animation: levelPulse 0.6s ease-in-out infinite;
+        }
+
+        .flash-effect {
+            animation: lineFlash 1s ease-out;
+        }
+
+        .panel-flash-anim {
+            animation: panelFlash 0.5s ease-in-out;
+        }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 10; border-radius: 12px;
+        }
+        .overlay.hidden { display: none; }
+
+        h1 { margin: 0 0 20px 0; color: #ffffff; letter-spacing: 4px; font-size: 5rem; }
+        h2 { margin: 0 0 20px 0; color: #ffffff; font-size: 3.5rem; }
+
+        .btn {
+            padding: 12px 30px; background: var(--accent-color); color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+            text-transform: uppercase; transition: 0.2s;
+        }
+        .btn:hover { background: #89ddff; transform: scale(1.05); }
+
+        #mobile-controls {
+            display: none; grid-template-columns: repeat(3, 1fr); gap: 8px;
+            width: 100%; max-width: 320px; margin-top: 15px;
+        }
+
+        .ctrl-btn {
+            background: #292e42; color: white; padding: 20px; border-radius: 8px;
+            font-size: 1.5rem; border: none;
+        }
+        .ctrl-btn:active { background: #414868; }
+        .ctrl-btn.wide { grid-column: span 2; font-size: 1rem; }
+
+        @media (max-width: 650px) {
+            #game-wrapper { flex-direction: column; padding: 10px; height: auto; max-height: none; }
+            .side-panel { flex-direction: row; width: 100%; justify-content: space-between; }
+                .info-box { width: 30%; }
+            #main-canvas { width: 240px; height: 480px; }
+            #mobile-controls { display: grid; }
+            .overlay.hidden { display: none !important; }
+            .overlay:not(.hidden) { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div class="side-panel">
+            <div id="title-header">TETRIS</div>
+            <div class="info-box">
+                <span class="info-label">Hold</span>
+                <canvas id="hold-canvas" width="80" height="80"></canvas>
+            </div>
+            <div class="info-box">
+                <span class="info-label">Score</span>
+                <div id="score-val" class="info-value">0</div>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <canvas id="main-canvas" width="300" height="600"></canvas>
+            <div id="start-screen" class="overlay">
+                <h1>TETRIS</h1>
+                <button class="btn" onclick="game.start()">Start</button>
+            </div>
+            <div id="pause-screen" class="overlay hidden">
+                <h2>PAUSED</h2>
+                <button class="btn" onclick="game.togglePause()">Resume</button>
+            </div>
+            <div id="game-over-screen" class="overlay hidden">
+                <h2>GAME OVER</h2>
+                <div id="final-score" class="info-value" style="margin-bottom:20px">0</div>
+                <button class="btn" onclick="game.start()">Restart</button>
+            </div>
+        </div>
+
+        <div class="side-panel">
+            <div class="info-box">
+                <span class="info-label">Next</span>
+                <canvas id="next-canvas" width="80" height="240"></canvas>
+            </div>
+            <div class="info-box">
+                <span class="info-label">Level</span>
+                <div id="level-val" class="info-value">1</div>
+            </div>
+            <div class="info-box">
+                <span class="info-label">Lines</span>
+                <div id="lines-val" class="info-value">0</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobile-controls">
+        <button class="ctrl-btn" id="btn-rot-z">Z</button>
+        <button class="ctrl-btn" id="btn-hold">C</button>
+        <button class="ctrl-btn" id="btn-rot-x">X</button>
+        <button class="ctrl-btn" id="btn-left">←</button>
+        <button class="ctrl-btn" id="btn-down">↓</button>
+        <button class="ctrl-btn" id="btn-right">→</button>
+        <button class="ctrl-btn wide" id="btn-hard">HARD DROP</button>
+    </div>
+
+    <script>
+        const COLS = 10, ROWS = 20, BLOCK_SIZE = 30;
+        const COLORS = { I:'#00f0f0', J:'#0000f0', L:'#f0a000', O:'#f0f000', S:'#00f000', T:'#a000f0', Z:'#f00000' };
+        const SHAPES = {
+            I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+            O:[[1,1],[1,1]],
+            T:[[0,1,0],[1,1,1],[0,0,0]],
+            S:[[0,1,1],[1,1,0],[0,0,0]],
+            Z:[[1,1,0],[0,1,1],[0,0,0]],
+            J:[[0,0,1],[1,1,1],[0,0,0]],
+            L:[[1,0,0],[1,1,1],[0,0,0]]
+        };
+
+        class Piece {
+            constructor(type) {
+                this.type = type;
+                        this.matrix = SHAPES[type] || SHAPES['I'];
+                        this.color = COLORS[type] || '#FFFFFF';
+                        this.pos = { x: 3, y: 0 };
+            }
+            rotate(dir) {
+                const m = this.matrix;
+                const r = m.length;
+                const c = m[0].length;
+                const next = Array.from({length: c}, () => Array(r).fill(0));
+                for(let y=0; y<r; y++) {
+                    for(let x=0; x<c; x++) {
+                        if(dir > 0) next[x][r-1-y] = m[y][x];
+                        else next[c-1-x][y] = m[y][x];
+                    }
+                }
+                return next;
+            }
+        }
+
+        class Tetris {
+            constructor() {
+                this.canvas = document.getElementById('main-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.holdCanvas = document.getElementById('hold-canvas');
+                this.nextCanvas = document.getElementById('next-canvas');
+                this.grid = this.createGrid();
+                this.bag = []; this.next = []; this.held = null;
+                this.score = 0; this.level = 1; this.lines = 0;
+                this.paused = false; this.gameOver = false; this.started = false;
+                this.lastTime = 0; this.dropCounter = 0; this.dropInterval = 1000;
+                this.setupInput();
+                this.draw();
+            }
+
+            createGrid() { return Array.from({length: ROWS}, () => Array(COLS).fill(null)); }
+
+            setupInput() {
+                window.addEventListener('keydown', e => {
+                    const code = e.code;
+                    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyZ','KeyX','KeyC','KeyP','KeyR'].includes(code)) {
+                        e.preventDefault();
+                    }
+                    this.handleKey(code);
+                });
+
+                const bind = (id, code) => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('click', () => this.handleKey(code));
+                };
+                bind('btn-left', 'ArrowLeft'); 
+                bind('btn-right', 'ArrowRight'); 
+                bind('btn-down', 'ArrowDown');
+                bind('btn-rot-x', 'ArrowUp'); 
+                bind('btn-rot-z', 'KeyZ'); 
+                bind('btn-hold', 'KeyC'); 
+                bind('btn-hard', 'Space');
+            }
+
+            handleKey(code) {
+                if (code === 'KeyP') return this.togglePause();
+                if (code === 'KeyR') return this.start();
+                if (!this.started || this.gameOver || this.paused) return;
+
+                switch(code) {
+                    case 'ArrowLeft': this.move(-1, 0); break;
+                    case 'ArrowRight': this.move(1, 0); break;
+                    case 'ArrowDown': this.drop(1); break;
+                    case 'ArrowUp': 
+                    case 'KeyX': this.rotate(1); break;
+                    case 'KeyZ': this.rotate(-1); break;
+                    case 'Space': this.hardDrop(); break;
+                    case 'KeyC': this.hold(); break;
+                }
+            }
+
+            start() {
+                this.grid = this.createGrid();
+                this.score = 0; this.level = 1; this.lines = 0;
+                this.gameOver = false; this.paused = false; this.started = true;
+                this.bag = []; this.next = []; this.held = null;
+                this.dropInterval = 1000;
+                document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+                this.spawn();
+                this.updateUI();
+                this.animate();
+            }
+
+            spawn() {
+                 if (this.bag.length === 0) {
+                     this.bag = Object.keys(SHAPES).sort(() => Math.random() - 0.5);
+                 }
+                 while (this.next.length < 3 && this.bag.length > 0) {
+                     this.next.push(this.bag.pop());
+                 }
+                 const type = this.next.length > 0 ? this.next.shift() : Object.keys(SHAPES)[Math.floor(Math.random() * 7)];
+                 this.current = new Piece(type);
+                 if (this.collide()) {
+                     this.gameOver = true;
+                     this.handleGameOver();
+                 }
+                 this.updateNext();
+            }
+
+            updateNext() {
+                const ctx = this.nextCanvas.getContext('2d');
+                ctx.clearRect(0,0,80,240);
+                if (this.next.length > 0) {
+                    this.next.forEach((type, i) => this.drawPreview(ctx, type, i));
+                }
+            }
+
+            drawPreview(ctx, type, index) {
+                if (!type || !SHAPES[type]) return;
+                const m = SHAPES[type];
+                ctx.fillStyle = COLORS[type];
+                const size = 18;
+                const offX = (ctx.canvas.width - (m[0].length * size)) / 2;
+                const offY = index * (ctx.canvas.height / 3) + 10;
+                m.forEach((row, y) => {
+                    row.forEach((v, x) => {
+                        if (v) ctx.fillRect(offX + x * size, offY + y * size, size-2, size-2);
+                    });
+                });
+            }
+
+            move(dx, dy) {
+                this.current.pos.x += dx;
+                this.current.pos.y += dy;
+                if (this.collide()) {
+                    this.current.pos.x -= dx;
+                    this.current.pos.y -= dy;
+                    return false;
+                }
+                return true;
+            }
+
+            rotate(dir) {
+                const oldM = this.current.matrix;
+                this.current.matrix = this.current.rotate(dir);
+                if (this.collide()) {
+                    // Simple Wall Kick
+                    const originalPos = {...this.current.pos};
+                    const offsets = [dir > 0 ? [1,0] : [-1,0], [0, -1], [0, 1]];
+                    let moved = false;
+                    for (let [ox, oy] of offsets) {
+                        this.current.pos.x += ox;
+                        if (!this.collide()) { moved = true; break; }
+                        this.current.pos.x -= ox;
+                    }
+                    if (!moved) {
+                        this.current.matrix = oldM;
+                        this.current.pos = originalPos;
+                    }
+                }
+            }
+
+            drop(dy) {
+                if (!this.move(0, dy)) {
+                    if (dy > 0) this.lock();
+                    return true;
+                }
+                return false;
+            }
+
+            hardDrop() {
+                while(this.move(0, 1));
+                this.lock();
+            }
+
+            lock() {
+                this.current.matrix.forEach((row, y) => {
+                    row.forEach((v, x) => {
+                        if (v) {
+                            const gy = this.current.pos.y + y;
+                            const gx = this.current.pos.x + x;
+                            if (gy < 0) { 
+                                this.gameOver = true; 
+                                this.handleGameOver(); // Call UI update
+                                return; 
+                            }
+                            this.grid[gy][gx] = this.current.color;
+                        }
+                    });
+                });
+                this.clear();
+                this.spawn();
+                this.canHold = true;
+            }
+
+            handleGameOver() {
+                if (this.gameOver) {
+                    document.getElementById('final-score').innerText = this.score;
+                    document.getElementById('game-over-screen').classList.remove('hidden');
+                    this.started = false;
+                }
+            }
+
+            collide() {
+                return this.current.matrix.some((row, y) =>
+                    row.some((v, x) => {
+                        if (!v) return false;
+                        const gy = this.current.pos.y + y;
+                        const gx = this.current.pos.x + x;
+                        return gx < 0 || gx >= COLS || gy >= ROWS || (gy >= 0 && this.grid[gy][gx]);
+                    })
+                );
+            }
+
+            clear() {
+                let linesCleared = 0;
+                for (let y = ROWS - 1; y >= 0; y--) {
+                    if (this.grid[y].every(c => c !== null)) {
+                        this.grid.splice(y, 1);
+                        this.grid.unshift(Array(COLS).fill(null));
+                        linesCleared++;
+                        y++;
+                    }
+                }
+                if (linesCleared) {
+                    this.lines += linesCleared;
+                    this.score += [0, 100, 300, 600, 1500][linesCleared] * this.level;
+                    const oldLevel = this.level;
+                    this.level = Math.floor(this.lines / 10) + 1;
+                    this.dropInterval = Math.max(100, 1000 - (this.level-1)*100);
+                    this.updateUI();
+
+                    // Visual feedback for line clear
+                    const canvas = document.getElementById('main-canvas');
+                    canvas.classList.remove('flash-effect');
+                    void canvas.offsetWidth; // Trigger reflow to restart animation
+                    canvas.classList.add('flash-effect');
+
+                    if (this.level > oldLevel) {
+                        const levelEl = document.getElementById('level-val');
+                        const levelBox = levelEl.parentElement;
+                        levelEl.classList.remove('level-up-anim');
+                        void levelEl.offsetWidth; // Trigger reflow to restart animation
+                        levelEl.classList.add('level-up-anim');
+
+                        if (levelBox) {
+                            levelBox.classList.remove('panel-flash-anim');
+                            void levelBox.offsetWidth; // Trigger reflow to restart animation
+                            levelBox.classList.add('panel-flash-anim');
+                            setTimeout(() => {
+                                levelEl.classList.remove('level-up-anim');
+                                if (levelBox) levelBox.classList.remove('panel-flash-anim');
+                            }, 3000);
+                        }
+                    }
+                }
+                if (this.gameOver) {
+                    document.getElementById('final-score').innerText = this.score;
+                    document.getElementById('game-over-screen').classList.remove('hidden');
+                    this.started = false;
+                }
+            }
+
+            hold() {
+                if (!this.canHold) return;
+                const type = this.current.type;
+                if (this.held) {
+                    const nextType = this.held;
+                    this.held = type;
+                    this.current = new Piece(nextType);
+                    this.current.pos = {x: 3, y: 0};
+                } else {
+                    this.held = type;
+                    this.spawn();
+                }
+                this.canHold = false;
+                this.drawHold();
+            }
+
+            drawHold() {
+                const ctx = this.holdCanvas.getContext('2d');
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0,0,80,80);
+                if (this.held) {
+                    const m = SHAPES[this.held];
+                    const size = 18;
+                    ctx.fillStyle = COLORS[this.held];
+                    m.forEach((row, y) => {
+                        row.forEach((v, x) => {
+                            if (v) ctx.fillRect(x*size + 8, y*size + 8, size-2, size-2);
+                        });
+                    });
+                }
+            }
+
+            updateUI() {
+                document.getElementById('score-val').innerText = this.score;
+                document.getElementById('level-val').innerText = this.level;
+                document.getElementById('lines-val').innerText = this.lines;
+            }
+
+            togglePause() {
+                this.paused = !this.paused;
+                document.getElementById('pause-screen').classList.toggle('hidden', !this.paused);
+                if (!this.paused) this.animate();
+            }
+
+            draw() {
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Grid
+                this.ctx.strokeStyle = '#222';
+                for(let i=0; i<=COLS; i++) { this.ctx.beginPath(); this.ctx.moveTo(i*30,0); this.ctx.lineTo(i*30,600); this.ctx.stroke(); }
+                for(let i=0; i<=ROWS; i++) { this.ctx.beginPath(); this.ctx.moveTo(0,i*30); this.ctx.lineTo(300,i*30); this.ctx.stroke(); }
+
+                this.grid.forEach((row, y) => {
+                    row.forEach((c, x) => { if(c) this.drawBlock(x, y, c); });
+                });
+
+                if (this.current) {
+                    // Ghost
+                    let gy = this.current.pos.y;
+                    const g = new Piece(this.current.type);
+                    g.matrix = this.current.matrix;
+                    g.pos = {...this.current.pos};
+                    while(!this.collideGhost(g)) g.pos.y++;
+                    g.pos.y--;
+                    this.ctx.globalAlpha = 0.2;
+                    g.matrix.forEach((row, y) => {
+                        row.forEach((v, x) => {
+                            if(v) this.drawBlock(g.pos.x+x, g.pos.y+y, this.current.color);
+                        });
+                    });
+                    this.ctx.globalAlpha = 1.0;
+                    // Piece
+                    this.current.matrix.forEach((row, y) => {
+                        row.forEach((v, x) => {
+                            if(v) this.drawBlock(this.current.pos.x+x, this.current.pos.y+y, this.current.color);
+                        });
+                    });
+                }
+            }
+
+            drawBlock(x, y, color) {
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(x*30, y*30, 30, 30);
+                this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                this.ctx.strokeRect(x*30, y*30, 30, 30);
+            }
+
+            collideGhost(g) {
+                return g.matrix.some((row, y) => row.some((v, x) => {
+                    if(!v) return false;
+                    const gx = g.pos.x + x, gy = g.pos.y + y;
+                    return gx < 0 || gx >= COLS || gy >= ROWS || (gy >= 0 && this.grid[gy][gx]);
+                }));
+            }
+
+            animate(time = 0) {
+                if (this.paused || this.gameOver || !this.started) return;
+                const deltaTime = time - this.lastTime;
+                this.lastTime = time;
+                this.dropCounter += deltaTime;
+                if (this.dropCounter > this.dropInterval) {
+                    this.drop(1);
+                    this.dropCounter = 0;
+                }
+                this.draw();
+                requestAnimationFrame(t => this.animate(t));
+            }
+        }
+
+        const game = new Tetris();
+    </script>
+</body>
+</html>
