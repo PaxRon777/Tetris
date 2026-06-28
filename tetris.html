@@ -8,21 +8,21 @@
     <style>
         :root {
             --bg-color: #121212;
-            --panel-color: #1e1e1e;
-            --text-color: #e0e0e0;
-            --accent-color: #888888;
-            --grid-border: #333333;
-        }
+                --panel-color: rgba(30, 30, 30, 0.9);
+                --text-color: #e0e0e0;
+                --accent-color: #888888;
+                --grid-border: #333333;
+            }
 
         * { box-sizing: border-box; touch-action: manipulation; user-select: none; }
 
-                body {
-                    margin: 0; padding: 0; background-color: var(--bg-color);
-                    color: #87CEFA; font-family: 'Science Gothic', 'Segoe UI', Tahoma, sans-serif;
-                    width: 100vw; height: 100vh; overflow: hidden;
-                    display: flex; justify-content: center; align-items: center;
-                    font-size: 3.5rem; font-weight: bold;
-                }
+        body {
+            margin: 0; padding: 0; background: url('tetris.jpg') no-repeat center center fixed; background-size: cover;
+            color: #87CEFA; font-family: 'Science Gothic', 'Segoe UI', Tahoma, sans-serif;
+            width: 100vw; height: 100vh; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 3.5rem; font-weight: bold;
+        }
 
         #game-wrapper {
             display: flex;
@@ -42,7 +42,7 @@
         }
 
         .info-box {
-            background: var(--panel-color); border: 1px solid var(--grid-border);
+            background: rgba(0, 0, 0, 0.7); border: 1px solid var(--grid-border);
             border-radius: 8px; padding: 10px; text-align: center;
             flex: 1;
             display: flex;
@@ -72,7 +72,7 @@
             height: 100%;
         }
 
-        canvas { display: block; background-color: #000; border-radius: 4px; image-rendering: crisp-edges; image-rendering: pixelated; }
+        canvas { display: block; background-color: #000000; border-radius: 4px; image-rendering: pixelated; }
         #main-canvas { 
             height: 100%;
             width: auto;
@@ -322,10 +322,16 @@
                  if (this.bag.length === 0) {
                      this.bag = Object.keys(SHAPES).sort(() => Math.random() - 0.5);
                  }
-                 while (this.next.length < 3 && this.bag.length > 0) {
+                 while (this.next.length < 4 && this.bag.length > 0) {
                      this.next.push(this.bag.pop());
                  }
-                 const type = this.next.length > 0 ? this.next.shift() : Object.keys(SHAPES)[Math.floor(Math.random() * 7)];
+                 if (this.next.length < 4) {
+                     const remaining = 4 - this.next.length;
+                     for (let i = 0; i < remaining; i++) {
+                         this.next.push(Object.keys(SHAPES)[Math.floor(Math.random() * 7)]);
+                     }
+                 }
+                 const type = this.next.shift();
                  this.current = new Piece(type);
                  if (this.collide()) {
                      this.gameOver = true;
@@ -345,13 +351,43 @@
             drawPreview(ctx, type, index) {
                 if (!type || !SHAPES[type]) return;
                 const m = SHAPES[type];
-                ctx.fillStyle = COLORS[type];
                 const size = 18;
+                const bevel = 3;
+                const inset = 2;
                 const offX = (ctx.canvas.width - (m[0].length * size)) / 2;
-                const offY = index * (ctx.canvas.height / 3) + 10;
+                const slotHeight = ctx.canvas.height / 3;
+                const offY = index * slotHeight + 10;
                 m.forEach((row, y) => {
                     row.forEach((v, x) => {
-                        if (v) ctx.fillRect(offX + x * size, offY + y * size, size-2, size-2);
+                        if (v) {
+                            const px = offX + x * size;
+                            const py = offY + y * size;
+                            // Base fill
+                            ctx.fillStyle = COLORS[type];
+                            ctx.fillRect(px, py, size, size);
+                            // Inner darkened face
+                            ctx.fillStyle = this.darkenHex(COLORS[type], 0.15);
+                            ctx.fillRect(px + inset, py + inset, size - inset * 2, size - inset * 2);
+                            // Top highlight
+                            ctx.fillStyle = this.lightenHex(COLORS[type], 0.35);
+                            ctx.fillRect(px + bevel, py, size - bevel * 2, bevel);
+                            ctx.fillRect(px, py + bevel, bevel, size - bevel);
+                            // Bottom shadow
+                            ctx.fillStyle = this.darkenHex(COLORS[type], 0.35);
+                            ctx.fillRect(px + bevel, py + size - bevel, size - bevel * 2, bevel);
+                            ctx.fillRect(px + size - bevel, py + bevel, bevel, size - bevel);
+                            // Inner bevel edges
+                            ctx.fillStyle = this.lightenHex(COLORS[type], 0.15);
+                            ctx.fillRect(px + inset, py + inset, 1, size - inset * 2);
+                            ctx.fillRect(px + inset, py + inset, size - inset * 2, 1);
+                            ctx.fillStyle = this.darkenHex(COLORS[type], 0.15);
+                            ctx.fillRect(px + size - 1 - inset, py + inset, 1, size - inset * 2);
+                            ctx.fillRect(px + inset, py + size - 1 - inset, size - inset * 2, 1);
+                            // Border
+                            ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1);
+                        }
                     });
                 });
             }
@@ -511,10 +547,41 @@
                 if (this.held) {
                     const m = SHAPES[this.held];
                     const size = 18;
-                    ctx.fillStyle = COLORS[this.held];
+                    const bevel = 3;
+                    const inset = 2;
+                    const offX = (ctx.canvas.width - (m[0].length * size)) / 2;
+                    const offY = (ctx.canvas.height - (m.length * size)) / 2;
                     m.forEach((row, y) => {
                         row.forEach((v, x) => {
-                            if (v) ctx.fillRect(x*size + 8, y*size + 8, size-2, size-2);
+                            if (v) {
+                                const px = offX + x * size;
+                                const py = offY + y * size;
+                                // Base fill
+                                ctx.fillStyle = COLORS[this.held];
+                                ctx.fillRect(px, py, size, size);
+                                // Inner darkened face
+                                ctx.fillStyle = this.darkenHex(COLORS[this.held], 0.15);
+                                ctx.fillRect(px + inset, py + inset, size - inset * 2, size - inset * 2);
+                                // Top highlight
+                                ctx.fillStyle = this.lightenHex(COLORS[this.held], 0.35);
+                                ctx.fillRect(px + bevel, py, size - bevel * 2, bevel);
+                                ctx.fillRect(px, py + bevel, bevel, size - bevel);
+                                // Bottom shadow
+                                ctx.fillStyle = this.darkenHex(COLORS[this.held], 0.35);
+                                ctx.fillRect(px + bevel, py + size - bevel, size - bevel * 2, bevel);
+                                ctx.fillRect(px + size - bevel, py + bevel, bevel, size - bevel);
+                                // Inner bevel edges
+                                ctx.fillStyle = this.lightenHex(COLORS[this.held], 0.15);
+                                ctx.fillRect(px + inset, py + inset, 1, size - inset * 2);
+                                ctx.fillRect(px + inset, py + inset, size - inset * 2, 1);
+                                ctx.fillStyle = this.darkenHex(COLORS[this.held], 0.15);
+                                ctx.fillRect(px + size - 1 - inset, py + inset, 1, size - inset * 2);
+                                ctx.fillRect(px + inset, py + size - 1 - inset, size - inset * 2, 1);
+                                // Border
+                                ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                                ctx.lineWidth = 1;
+                                ctx.strokeRect(px + 0.5, py + 0.5, size - 1, size - 1);
+                            }
                         });
                     });
                 }
@@ -569,11 +636,58 @@
                 }
             }
 
+            lightenHex(hex, amount) {
+                const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + Math.round(amount * 255));
+                const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + Math.round(amount * 255));
+                const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + Math.round(amount * 255));
+                return `rgb(${r},${g},${b})`;
+            }
+
+            darkenHex(hex, amount) {
+                const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - Math.round(amount * 255));
+                const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - Math.round(amount * 255));
+                const b = Math.max(0, parseInt(hex.slice(5, 7), 16) - Math.round(amount * 255));
+                return `rgb(${r},${g},${b})`;
+            }
+
             drawBlock(x, y, color) {
+                const px = x * 30;
+                const py = y * 30;
+                const s = 30;
+                const bevel = 4;
+                const inset = 2;
+
+                // Base fill
                 this.ctx.fillStyle = color;
-                this.ctx.fillRect(x*30, y*30, 30, 30);
-                this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-                this.ctx.strokeRect(x*30, y*30, 30, 30);
+                this.ctx.fillRect(px, py, s, s);
+
+                // Inner darkened face (depth)
+                this.ctx.fillStyle = this.darkenHex(color, 0.15);
+                this.ctx.fillRect(px + inset, py + inset, s - inset * 2, s - inset * 2);
+
+                // Top highlight (lighter)
+                this.ctx.fillStyle = this.lightenHex(color, 0.35);
+                this.ctx.fillRect(px + bevel, py, s - bevel * 2, bevel);
+                this.ctx.fillRect(px, py + bevel, bevel, s - bevel);
+
+                // Bottom shadow (darker)
+                this.ctx.fillStyle = this.darkenHex(color, 0.35);
+                this.ctx.fillRect(px + bevel, py + s - bevel, s - bevel * 2, bevel);
+                this.ctx.fillRect(px + s - bevel, py + bevel, bevel, s - bevel);
+
+                // Inner bevel edge (crisp pixelated step)
+                this.ctx.fillStyle = this.lightenHex(color, 0.15);
+                this.ctx.fillRect(px + inset, py + inset, 1, s - inset * 2);
+                this.ctx.fillRect(px + inset, py + inset, s - inset * 2, 1);
+
+                this.ctx.fillStyle = this.darkenHex(color, 0.15);
+                this.ctx.fillRect(px + s - 1 - inset, py + inset, 1, s - inset * 2);
+                this.ctx.fillRect(px + inset, py + s - 1 - inset, s - inset * 2, 1);
+
+                // Outer border
+                this.ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1);
             }
 
             collideGhost(g) {
