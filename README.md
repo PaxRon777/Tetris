@@ -2,6 +2,8 @@
 
 Tetris clone built with vanilla JavaScript and HTML5 Canvas. Featuring a sleek dark aesthetic, smooth animations.
 
+![alt text](screenshot.jpg)
+
 ## 🚀 Features
 -  Charcoal and neon color palette.
 - **Responsive Design**: Full-screen layout that adapts to various screen sizes.
